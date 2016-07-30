@@ -1,4 +1,14 @@
 *pyc
 MANIFEST
-dist
 doc/_build
+.idea
+.coverage
+.ipynb_checkpoints
+.ropeproject
+
+data
+dist
+build
+PyAlgoTrade.egg-info
+
+testcases/twitter_credentials.py

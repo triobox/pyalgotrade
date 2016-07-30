@@ -30,6 +30,10 @@ Moving Averages
 Momentum Indicators
 -------------------
 
+.. automodule:: pyalgotrade.technical.macd
+    :members: MACD
+    :show-inheritance:
+
 .. automodule:: pyalgotrade.technical.rsi
     :members: RSI
     :show-inheritance:
@@ -45,27 +49,39 @@ Momentum Indicators
 Other Indicators
 ----------------
 
-.. automodule:: pyalgotrade.technical.trend
-    :members: Slope
+.. automodule:: pyalgotrade.technical.atr
+    :members: ATR
     :show-inheritance:
 
-.. automodule:: pyalgotrade.technical.highlow
-    :members: High, Low
+.. automodule:: pyalgotrade.technical.bollinger
+    :members: BollingerBands
     :show-inheritance:
 
 .. automodule:: pyalgotrade.technical.cross
     :members: cross_above, cross_below
     :show-inheritance:
 
+.. automodule:: pyalgotrade.technical.cumret
+    :members: CumulativeReturn
+    :show-inheritance:
+
+.. automodule:: pyalgotrade.technical.highlow
+    :members: High, Low
+    :show-inheritance:
+
+.. automodule:: pyalgotrade.technical.hurst
+    :members: HurstExponent
+    :show-inheritance:
+
 .. automodule:: pyalgotrade.technical.linebreak
     :members: Line, LineBreak
     :show-inheritance:
 
-.. automodule:: pyalgotrade.technical.stats
-    :members: StdDev
+.. automodule:: pyalgotrade.technical.linreg
+    :members: LeastSquaresRegression, Slope
     :show-inheritance:
 
-.. automodule:: pyalgotrade.technical.bollinger
-    :members: BollingerBands
+.. automodule:: pyalgotrade.technical.stats
+    :members: StdDev, ZScore
     :show-inheritance:
 

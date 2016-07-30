@@ -15,9 +15,10 @@ Contents:
     tutorial
     code
     tools
+    eventprofiler
+    bitcoin
+    twitter
     talib
-    googleappengine
-    mtgox
     compinvpart1
     samples
 

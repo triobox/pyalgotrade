@@ -4,25 +4,26 @@ from pyalgotrade.stratanalyzer import returns
 from pyalgotrade.stratanalyzer import sharpe
 from pyalgotrade.utils import stats
 
+
 class MyStrategy(strategy.BacktestingStrategy):
-	def __init__(self, feed):
-		strategy.BacktestingStrategy.__init__(self, feed, 1000000)
+    def __init__(self, feed):
+        super(MyStrategy, self).__init__(feed, 1000000)
 
-		# We wan't to use adjusted close prices instead of close.
-		self.getBroker().setUseAdjustedValues(True)
+        # We wan't to use adjusted close prices instead of close.
+        self.setUseAdjustedValues(True)
 
-		# Place the orders to get them processed on the first bar.
-		orders = {
-			"aeti": 297810,
-			"egan": 81266,
-			"glng": 11095,
-			"simo": 17293,
-		}
-		for instrument, quantity in orders.items():
-			self.order(instrument, quantity, onClose=True)
+        # Place the orders to get them processed on the first bar.
+        orders = {
+            "aeti": 297810,
+            "egan": 81266,
+            "glng": 11095,
+            "simo": 17293,
+        }
+        for instrument, quantity in orders.items():
+            self.marketOrder(instrument, quantity, onClose=True, allOrNone=True)
 
-	def onBars(self, bars):
-		pass
+    def onBars(self, bars):
+        pass
 
 # Load the yahoo feed from CSV files.
 feed = yahoofeed.Feed()
@@ -49,4 +50,3 @@ print "Anual return: %.2f %%" % (retAnalyzer.getCumulativeReturns()[-1] * 100)
 print "Average daily return: %.2f %%" % (stats.mean(retAnalyzer.getReturns()) * 100)
 print "Std. dev. daily return: %.4f" % (stats.stddev(retAnalyzer.getReturns()))
 print "Sharpe ratio: %.2f" % (sharpeRatioAnalyzer.getSharpeRatio(0))
-

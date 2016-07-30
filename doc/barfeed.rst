@@ -1,12 +1,17 @@
+.. _barfeed-label:
+
 barfeed -- Bar providers
 ========================
 
 .. automodule:: pyalgotrade.barfeed
-    :members: BarFeed
-    :inherited-members:
+    :members: BaseBarFeed
+    :member-order: bysource
     :special-members:
+    :exclude-members: __weakref__
     :show-inheritance:
 
+CSV
+---
 .. automodule:: pyalgotrade.barfeed.csvfeed
     :members: BarFeed, GenericBarFeed
     :show-inheritance:
@@ -14,6 +19,18 @@ barfeed -- Bar providers
 Yahoo! Finance
 --------------
 .. automodule:: pyalgotrade.barfeed.yahoofeed
+    :members: Feed
+    :show-inheritance:
+
+Google Finance
+--------------
+.. automodule:: pyalgotrade.barfeed.googlefeed
+    :members: Feed
+    :show-inheritance:
+
+Quandl
+------
+.. automodule:: pyalgotrade.barfeed.quandlfeed
     :members: Feed
     :show-inheritance:
 

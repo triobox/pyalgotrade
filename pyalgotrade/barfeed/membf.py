@@ -1,13 +1,13 @@
 # PyAlgoTrade
-# 
-# Copyright 2012 Gabriel Martin Becedillas Ruiz
-# 
+#
+# Copyright 2011-2015 Gabriel Martin Becedillas Ruiz
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-# 
+#
 #   http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -19,8 +19,9 @@
 """
 
 from pyalgotrade import barfeed
-from pyalgotrade import dataseries
-from pyalgotrade.barfeed import helpers
+from pyalgotrade import bar
+from pyalgotrade import utils
+
 
 # A non real-time BarFeed responsible for:
 # - Holding bars in memory.
@@ -29,93 +30,89 @@ from pyalgotrade.barfeed import helpers
 # Subclasses should:
 # - Forward the call to start() if they override it.
 
-class Feed(barfeed.BarFeed):
-	def __init__(self, frequency, maxLen=dataseries.DEFAULT_MAX_LEN):
-		barfeed.BarFeed.__init__(self, frequency, maxLen)
-		self.__bars = {}
-		self.__nextBarIdx = {}
-		self.__started = False
-		self.__barsLeft = 0
+class BarFeed(barfeed.BaseBarFeed):
+    def __init__(self, frequency, maxLen=None):
+        super(BarFeed, self).__init__(frequency, maxLen)
 
-	def isRealTime(self):
-		return False
+        self.__bars = {}
+        self.__nextPos = {}
+        self.__started = False
+        self.__currDateTime = None
 
-	def start(self):
-		self.__started = True
-		# Set session close attributes to bars.
-		for instrument, bars in self.__bars.iteritems():
-			helpers.set_session_close_attributes(bars)
-			self.__barsLeft = max(self.__barsLeft, len(bars))
+    def reset(self):
+        self.__nextPos = {}
+        for instrument in self.__bars.keys():
+            self.__nextPos.setdefault(instrument, 0)
+        self.__currDateTime = None
+        super(BarFeed, self).reset()
 
-	def stop(self):
-		pass
+    def getCurrentDateTime(self):
+        return self.__currDateTime
 
-	def join(self):
-		pass
+    def start(self):
+        super(BarFeed, self).start()
+        self.__started = True
 
-	def addBarsFromSequence(self, instrument, bars):
-		if self.__started:
-			raise Exception("Can't add more bars once you started consuming bars")
+    def stop(self):
+        pass
 
-		self.__bars.setdefault(instrument, [])
-		self.__nextBarIdx.setdefault(instrument, 0)
+    def join(self):
+        pass
 
-		# Add and sort the bars
-		self.__bars[instrument].extend(bars)
-		barCmp = lambda x, y: cmp(x.getDateTime(), y.getDateTime())
-		self.__bars[instrument].sort(barCmp)
+    def addBarsFromSequence(self, instrument, bars):
+        if self.__started:
+            raise Exception("Can't add more bars once you started consuming bars")
 
-		self.registerInstrument(instrument)
+        self.__bars.setdefault(instrument, [])
+        self.__nextPos.setdefault(instrument, 0)
 
-	def eof(self):
-		ret = True
-		# Check if there is at least one more bar to return.
-		for instrument, bars in self.__bars.iteritems():
-			nextIdx = self.__nextBarIdx[instrument]
-			if nextIdx < len(bars):
-				ret = False
-				break
-		return ret
+        # Add and sort the bars
+        self.__bars[instrument].extend(bars)
+        barCmp = lambda x, y: cmp(x.getDateTime(), y.getDateTime())
+        self.__bars[instrument].sort(barCmp)
 
-	def peekDateTime(self):
-		ret = None
+        self.registerInstrument(instrument)
 
-		for instrument, bars in self.__bars.iteritems():
-			nextIdx = self.__nextBarIdx[instrument]
-			if nextIdx < len(bars):
-				if ret == None or bars[nextIdx].getDateTime() < ret:
-					ret = bars[nextIdx].getDateTime()
+    def eof(self):
+        ret = True
+        # Check if there is at least one more bar to return.
+        for instrument, bars in self.__bars.iteritems():
+            nextPos = self.__nextPos[instrument]
+            if nextPos < len(bars):
+                ret = False
+                break
+        return ret
 
-		# ret should not be None since peekDateTime should only get called if eof returned False.
-		assert(ret != None)
-		return ret
+    def peekDateTime(self):
+        ret = None
 
-	def fetchNextBars(self):
-		# All bars must have the same datetime. We will return all the ones with the smallest datetime.
-		smallestDateTime = self.peekDateTime()
+        for instrument, bars in self.__bars.iteritems():
+            nextPos = self.__nextPos[instrument]
+            if nextPos < len(bars):
+                ret = utils.safe_min(ret, bars[nextPos].getDateTime())
+        return ret
 
-		if smallestDateTime == None:
-			assert(self.__barsLeft == 0)
-			return None
+    def getNextBars(self):
+        # All bars must have the same datetime. We will return all the ones with the smallest datetime.
+        smallestDateTime = self.peekDateTime()
 
-		# Make a second pass to get all the bars that had the smallest datetime.
-		ret = {}
-		for instrument, bars in self.__bars.iteritems():
-			nextIdx = self.__nextBarIdx[instrument]
-			if nextIdx < len(bars) and bars[nextIdx].getDateTime() == smallestDateTime:
-				ret[instrument] = bars[nextIdx]
-				self.__nextBarIdx[instrument] += 1
+        if smallestDateTime is None:
+            return None
 
-		self.__barsLeft -= 1
-		return ret
+        # Make a second pass to get all the bars that had the smallest datetime.
+        ret = {}
+        for instrument, bars in self.__bars.iteritems():
+            nextPos = self.__nextPos[instrument]
+            if nextPos < len(bars) and bars[nextPos].getDateTime() == smallestDateTime:
+                ret[instrument] = bars[nextPos]
+                self.__nextPos[instrument] += 1
 
-	def getBarsLeft(self):
-		return self.__barsLeft
+        if self.__currDateTime == smallestDateTime:
+            raise Exception("Duplicate bars found for %s on %s" % (ret.keys(), smallestDateTime))
 
-	def loadAll(self):
-		self.start()
-		for b in self:
-			pass
-		self.stop()
-		self.join()
+        self.__currDateTime = smallestDateTime
+        return bar.Bars(ret)
 
+    def loadAll(self):
+        for dateTime, bars in self:
+            pass

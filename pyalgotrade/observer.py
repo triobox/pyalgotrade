@@ -1,13 +1,13 @@
 # PyAlgoTrade
-# 
-# Copyright 2011 Gabriel Martin Becedillas Ruiz
-# 
+#
+# Copyright 2011-2015 Gabriel Martin Becedillas Ruiz
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-# 
+#
 #   http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -18,131 +18,98 @@
 .. moduleauthor:: Gabriel Martin Becedillas Ruiz <gabriel.becedillas@gmail.com>
 """
 
-class Event:
-	def __init__(self):
-		self.__handlers = []
-		self.__toSubscribe = []
-		self.__toUnsubscribe = []
-		self.__emitting = False
+import abc
 
-	def __applyChanges(self):
-		for handler in self.__toSubscribe:
-			if handler not in self.__handlers:
-				self.__handlers.append(handler)
-		for handler in self.__toUnsubscribe:
-			self.__handlers.remove(handler)
+from pyalgotrade import dispatchprio
 
-		self.__toSubscribe = []
-		self.__toUnsubscribe = []
 
-	def subscribe(self, handler):
-		if self.__emitting:
-			self.__toSubscribe.append(handler)
-		elif handler not in self.__handlers:
-			self.__handlers.append(handler)
+class Event(object):
+    def __init__(self):
+        self.__handlers = []
+        self.__toSubscribe = []
+        self.__toUnsubscribe = []
+        self.__emitting = False
 
-	def unsubscribe(self, handler):
-		if self.__emitting:
-			self.__toUnsubscribe.append(handler)
-		else:
-			self.__handlers.remove(handler)
+    def __applyChanges(self):
+        if len(self.__toSubscribe):
+            for handler in self.__toSubscribe:
+                if handler not in self.__handlers:
+                    self.__handlers.append(handler)
+            self.__toSubscribe = []
 
-	def emit(self, *parameters):
-		self.__emitting = True
-		for handler in self.__handlers:
-			handler(*parameters)
-		self.__emitting = False
-		self.__applyChanges()
+        if len(self.__toUnsubscribe):
+            for handler in self.__toUnsubscribe:
+                self.__handlers.remove(handler)
+            self.__toUnsubscribe = []
 
-class Subject:
-	# This may raise.
-	def start(self):
-		raise NotImplementedError()
+    def subscribe(self, handler):
+        if self.__emitting:
+            self.__toSubscribe.append(handler)
+        elif handler not in self.__handlers:
+            self.__handlers.append(handler)
 
-	# This should not raise.
-	def stop(self):
-		raise NotImplementedError()
+    def unsubscribe(self, handler):
+        if self.__emitting:
+            self.__toUnsubscribe.append(handler)
+        else:
+            self.__handlers.remove(handler)
 
-	# This should not raise.
-	def join(self):
-		raise NotImplementedError()
+    def emit(self, *args, **kwargs):
+        try:
+            self.__emitting = True
+            for handler in self.__handlers:
+                handler(*args, **kwargs)
+        finally:
+            self.__emitting = False
+            self.__applyChanges()
 
-	# Return True if there are not more events to dispatch.
-	def eof(self):
-		raise NotImplementedError()
 
-	def dispatch(self):
-		raise NotImplementedError()
+class Subject(object):
+    __metaclass__ = abc.ABCMeta
 
-	def peekDateTime(self):
-		# Return the datetime for the next event.
-		# This is needed to properly synchronize non-realtime subjects.
-		raise NotImplementedError()
+    def __init__(self):
+        self.__dispatchPrio = dispatchprio.LAST
 
-	def getDispatchPriority(self):
-		# Returns a number (or None) used to sort subjects within the dispatch queue.
-		# The return value should never change.
-		return None
+    # This may raise.
+    @abc.abstractmethod
+    def start(self):
+        pass
 
-# This class is responsible for dispatching events from multiple subjects, synchronizing them if necessary.
-class Dispatcher:
-	def __init__(self):
-		self.__subjects = []
-		self.__stopped = False
+    # This should not raise.
+    @abc.abstractmethod
+    def stop(self):
+        raise NotImplementedError()
 
-	def stop(self):
-		self.__stopped = True
+    # This should not raise.
+    @abc.abstractmethod
+    def join(self):
+        raise NotImplementedError()
 
-	def getSubjects(self):
-		return self.__subjects
+    # Return True if there are not more events to dispatch.
+    @abc.abstractmethod
+    def eof(self):
+        raise NotImplementedError()
 
-	def addSubject(self, subject):
-		assert(subject not in self.__subjects)
-		if subject.getDispatchPriority() == None:
-			self.__subjects.append(subject)
-		else:
-			# Find the position for the subject's priority.
-			pos = 0
-			for s in self.__subjects:
-				if s.getDispatchPriority() == None or subject.getDispatchPriority() < s.getDispatchPriority():
-					break
-				pos += 1
-			self.__subjects.insert(pos, subject)
+    # Dispatch events. If True is returned, it means that at least one event was dispatched.
+    @abc.abstractmethod
+    def dispatch(self):
+        raise NotImplementedError()
 
-	def __dispatch(self):
-		smallestDateTime = None
-		ret = False
+    @abc.abstractmethod
+    def peekDateTime(self):
+        # Return the datetime for the next event.
+        # This is needed to properly synchronize non-realtime subjects.
+        # Return None since this is a realtime subject.
+        raise NotImplementedError()
 
-		# Scan for the lowest datetime.
-		for subject in self.__subjects:
-			if not subject.eof():
-				ret = True
-				nextDateTime = subject.peekDateTime()
-				if nextDateTime != None:
-					if smallestDateTime == None:
-						smallestDateTime = nextDateTime
-					elif nextDateTime < smallestDateTime:
-						smallestDateTime = nextDateTime
+    def getDispatchPriority(self):
+        # Returns a priority used to sort subjects within the dispatch queue.
+        # The return value should never change once this subject is added to the dispatcher.
+        return self.__dispatchPrio
 
-		# Dispatch realtime subjects and those subjects with the lowest datetime.
-		if ret:
-			for subject in self.__subjects:
-				if not subject.eof():
-					nextDateTime = subject.peekDateTime()
-					if nextDateTime == None or nextDateTime == smallestDateTime:
-						subject.dispatch()
-		return ret
+    def setDispatchPriority(self, dispatchPrio):
+        self.__dispatchPrio = dispatchPrio
 
-	def run(self):
-		try:
-			for subject in self.__subjects:
-				subject.start()
-
-			while not self.__stopped and self.__dispatch():
-				pass
-		finally:
-			for subject in self.__subjects:
-				subject.stop()
-			for subject in self.__subjects:
-				subject.join()
-
+    def onDispatcherRegistered(self, dispatcher):
+        # Called when the subject is registered with a dispatcher.
+        pass
